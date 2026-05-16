@@ -747,7 +747,7 @@ async function handleMagnet(magnet) {
   }
 }
 
-async function saveSelectedFiles(magnet, selectedOptions, playAfterSave) {
+async function saveSelectedFiles(magnet, selectedOptions, action = 'save') {
   state.busy = true;
   const canSelectByIndex = selectedOptions.every((item) => item.fileIndex !== null);
   const fileIndexes = canSelectByIndex ? selectedOptions.map((item) => item.fileIndex) : null;
@@ -825,8 +825,12 @@ async function saveSelectedFiles(magnet, selectedOptions, playAfterSave) {
       return;
     }
 
-    showToast('保存完成', `已找到 ${playableItems.length} 个文件。`, 'success');
-    if (playAfterSave) {
+    if (action === 'downloadList') {
+      showDownloadListModal(playableItems);
+    } else {
+      showToast('保存完成', `已找到 ${playableItems.length} 个文件。`, 'success');
+    }
+    if (action === 'play') {
       showPlayerModal(playableItems, { taskId, folderId });
     }
   } catch (error) {

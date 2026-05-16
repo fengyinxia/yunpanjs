@@ -251,7 +251,7 @@ function showSelectionModal(context) {
     refreshSummary();
   }
 
-  function start(playAfterSave) {
+  function start(action) {
     const selected = getSelectedOptions();
     if (selected.length === 0) {
       showToast('没有选择文件', '请选择文件。', 'warn');
@@ -266,7 +266,7 @@ function showSelectionModal(context) {
       return;
     }
     clearModal();
-    saveSelectedFiles(context.magnet, selected, playAfterSave);
+    saveSelectedFiles(context.magnet, selected, action);
   }
 
   filterInput.addEventListener('input', applyFilter);
@@ -285,13 +285,164 @@ function showSelectionModal(context) {
       ]),
       fileList,
       createElement('div', { className: 'gyp-actions' }, [
-        createElement('button', { className: 'gyp-button gyp-button-secondary', type: 'button', text: '仅保存', onclick: () => start(false) }),
-        createElement('button', { className: 'gyp-button gyp-button-primary', type: 'button', text: '保存并播放', onclick: () => start(true) }),
+        createElement('button', { className: 'gyp-button gyp-button-secondary', type: 'button', text: '仅保存', onclick: () => start('save') }),
+        createElement('button', { className: 'gyp-button gyp-button-secondary', type: 'button', text: '保存并播放', onclick: () => start('play') }),
+        createElement('button', { className: 'gyp-button gyp-button-primary', type: 'button', text: '保存并下载', onclick: () => start('downloadList') }),
       ]),
     ]),
   ]);
   mountModal(card);
   applyFilter();
+}
+
+function getDisplayFileName(item) {
+  const directName = String((item && item.fileName) || '').trim();
+  if (directName) {
+    return directName;
+  }
+  const path = String((item && item.path) || '').trim();
+  const parts = path.split(/[\\/]+/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : '未命名文件';
+}
+
+function triggerBrowserDownload(url, name, callbacks = {}) {
+  if (typeof GM_download === 'function') {
+    GM_download({
+      url,
+      name,
+      saveAs: false,
+      onload: callbacks.onload,
+      onerror: callbacks.onerror,
+      ontimeout: callbacks.onerror,
+    });
+    return;
+  }
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.click();
+  if (typeof callbacks.onload === 'function') {
+    callbacks.onload();
+  }
+}
+
+function showDownloadListModal(items) {
+  const rows = [];
+  const entries = (Array.isArray(items) ? items : []).map((item, index) => {
+    const fileName = getDisplayFileName(item);
+    const stateInfo = { url: '', loading: false, error: '' };
+    const nameNode = createElement('strong', { text: fileName });
+    const sizeNode = createElement('small', { text: formatSize(item && item.fileSize) });
+    const statusNode = createElement('span', { className: 'gyp-download-status', text: '' });
+    const downloadButton = createElement('button', { className: 'gyp-text-button', type: 'button', text: '下载' });
+    const copyButton = createElement('button', { className: 'gyp-text-button', type: 'button', text: '复制' });
+
+    function setBusy(loading) {
+      stateInfo.loading = Boolean(loading);
+      downloadButton.disabled = stateInfo.loading;
+      copyButton.disabled = stateInfo.loading;
+      statusNode.textContent = stateInfo.loading ? '获取中' : stateInfo.error;
+      statusNode.classList.toggle('is-error', Boolean(stateInfo.error));
+    }
+
+    async function getDownloadUrl() {
+      if (stateInfo.url) {
+        return stateInfo.url;
+      }
+      stateInfo.error = '';
+      setBusy(true);
+      try {
+        const link = await fetchPlayableUrl(item.fileId);
+        stateInfo.url = link.url;
+        statusNode.textContent = '';
+        return stateInfo.url;
+      } catch (error) {
+        stateInfo.error = '失败';
+        statusNode.title = errorToMessage(error);
+        throw error;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    downloadButton.addEventListener('click', async () => {
+      try {
+        const url = await getDownloadUrl();
+        triggerBrowserDownload(url, fileName, {
+          onload: () => {
+            statusNode.textContent = '';
+          },
+          onerror: (error) => {
+            stateInfo.error = '失败';
+            statusNode.textContent = '失败';
+            statusNode.title = errorToMessage(error);
+            statusNode.classList.add('is-error');
+          },
+        });
+      } catch (error) {
+        showToast('获取下载链接失败', errorToMessage(error), 'error');
+      }
+    });
+
+    copyButton.addEventListener('click', async () => {
+      try {
+        copyText(await getDownloadUrl());
+      } catch (error) {
+        showToast('获取下载链接失败', errorToMessage(error), 'error');
+      }
+    });
+
+    const row = createElement('div', { className: 'gyp-download-row' }, [
+      createElement('span', { className: 'gyp-download-index', text: String(index + 1).padStart(2, '0') }),
+      createElement('span', { className: 'gyp-download-main' }, [nameNode, sizeNode]),
+      statusNode,
+      createElement('span', { className: 'gyp-download-actions' }, [downloadButton, copyButton]),
+    ]);
+    rows.push(row);
+    return { getDownloadUrl };
+  });
+
+  const copyAllButton = createElement('button', {
+    className: 'gyp-button gyp-button-secondary',
+    type: 'button',
+    text: '复制全部链接',
+    disabled: entries.length === 0,
+    onclick: async () => {
+      copyAllButton.disabled = true;
+      copyAllButton.textContent = '获取中';
+      try {
+        const urls = [];
+        for (const entry of entries) {
+          urls.push(await entry.getDownloadUrl());
+        }
+        copyText(urls.join('\n'));
+      } catch (error) {
+        showToast('复制失败', errorToMessage(error), 'error');
+      } finally {
+        copyAllButton.disabled = entries.length === 0;
+        copyAllButton.textContent = '复制全部链接';
+      }
+    },
+  });
+
+  const card = createElement('section', { className: 'gyp-card gyp-download-card' }, [
+    createElement('div', { className: 'gyp-download-header' }, [
+      createElement('div', { className: 'gyp-download-heading' }, [
+        createElement('h2', { text: '下载列表' }),
+        createElement('span', { text: `${entries.length} 个文件` }),
+      ]),
+      createElement('div', { className: 'gyp-download-top-actions' }, [
+        copyAllButton,
+        createElement('button', { className: 'gyp-icon-button', type: 'button', text: '×', onclick: clearModal, 'aria-label': '关闭' }),
+      ]),
+    ]),
+    createElement('div', { className: 'gyp-card-body gyp-download-body' }, [
+      createElement('div', { className: 'gyp-download-list' }, rows),
+    ]),
+  ]);
+  mountModal(card);
 }
 
 function showSettingsModal() {
@@ -445,12 +596,12 @@ function showToast(title, message, tone = 'info') {
 function copyText(text) {
   if (typeof GM_setClipboard === 'function') {
     GM_setClipboard(text, 'text');
-    showToast('已复制播放链接', '链接已写入剪贴板。', 'success');
+    showToast('已复制链接', '链接已写入剪贴板。', 'success');
     return;
   }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => {
-      showToast('已复制播放链接', '链接已写入剪贴板。', 'success');
+      showToast('已复制链接', '链接已写入剪贴板。', 'success');
     }).catch(() => {
       showToast('复制失败', '浏览器拒绝写入剪贴板。', 'error');
     });
@@ -730,6 +881,95 @@ function buildStyles() {
       font-size: 12px;
       line-height: 1.45;
       text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .gyp-download-card { width: min(820px, calc(100vw - 32px)); }
+    .gyp-download-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 22px 26px 16px;
+      border-bottom: 1px solid rgba(126, 211, 255, 0.14);
+    }
+    .gyp-download-heading {
+      display: flex;
+      min-width: 0;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .gyp-download-heading span {
+      flex: 0 0 auto;
+      color: #8fa7ba;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .gyp-download-top-actions {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 10px;
+    }
+    .gyp-download-body { max-height: calc(100vh - 148px); }
+    .gyp-download-list {
+      display: grid;
+      gap: 10px;
+      max-height: min(560px, 62vh);
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .gyp-download-row {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto auto;
+      gap: 12px;
+      align-items: center;
+      padding: 13px 14px;
+      border: 1px solid rgba(126, 211, 255, 0.13);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+    .gyp-download-index {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.045);
+      color: #a9bdcf;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+    }
+    .gyp-download-main { min-width: 0; }
+    .gyp-download-main strong {
+      display: block;
+      overflow: hidden;
+      color: #eefbff;
+      font-size: 14px;
+      line-height: 1.45;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .gyp-download-main small {
+      display: block;
+      margin-top: 4px;
+      color: #8fa7ba;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+    .gyp-download-status {
+      min-width: 42px;
+      color: #8fa7ba;
+      font-size: 12px;
+      font-weight: 800;
+      text-align: right;
+    }
+    .gyp-download-status.is-error { color: #ff9a9a; }
+    .gyp-download-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
       white-space: nowrap;
     }
     .gyp-details { margin-top: 16px; color: #a9bdcf; font-size: 13px; }
@@ -1102,6 +1342,13 @@ function buildStyles() {
       .gyp-selection-filters { width: 100%; min-width: 0; }
       .gyp-selection-search { width: 100%; flex: 1 1 auto; }
       .gyp-selection-meta { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+      .gyp-download-header { align-items: flex-start; padding: 18px; }
+      .gyp-download-heading { flex-direction: column; gap: 4px; }
+      .gyp-download-top-actions { gap: 8px; }
+      .gyp-download-body { max-height: calc(100vh - 116px); }
+      .gyp-download-row { grid-template-columns: 34px minmax(0, 1fr); align-items: flex-start; }
+      .gyp-download-status { grid-column: 1 / -1; min-width: 0; text-align: left; }
+      .gyp-download-actions { grid-column: 1 / -1; justify-content: flex-end; }
       .gyp-player-floating { top: 10px; width: calc(100% - 96px); }
       .gyp-player-title { display: -webkit-box; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
       .gyp-player-layout { --gyp-playlist-width: min(360px, 88vw); height: 100%; }
