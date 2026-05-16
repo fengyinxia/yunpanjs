@@ -466,7 +466,19 @@ async function createTask(magnet, fileIndexes) {
   return String(taskId);
 }
 
-async function pollTask(taskId, onProgress) {
+async function cancelCloudTask(taskId) {
+  const id = String(taskId || '').trim();
+  if (!id) {
+    return;
+  }
+  await requestJson('/cloudcollection/v2/delete_task', { taskIds: [id] });
+}
+
+function isOperationCancelled(options) {
+  return Boolean(options && typeof options.isCancelled === 'function' && options.isCancelled());
+}
+
+async function pollTask(taskId, onProgress, options = {}) {
   const config = getConfig();
   const deadline = Date.now() + safeInt(config.maxWaitMs, DEFAULT_CONFIG.maxWaitMs);
   const pollIntervalMs = Math.max(1000, safeInt(config.pollIntervalMs, DEFAULT_CONFIG.pollIntervalMs));
@@ -475,7 +487,13 @@ async function pollTask(taskId, onProgress) {
   let stableCount = 0;
 
   while (Date.now() < deadline) {
+    if (isOperationCancelled(options)) {
+      throw new Error('用户已取消任务');
+    }
     const data = await requestJson('/cloudcollection/v1/list_task', { taskIds: [taskId] }, { retries: 1, retryCodes: [101] });
+    if (isOperationCancelled(options)) {
+      throw new Error('用户已取消任务');
+    }
     const payload = data.data || {};
     const tasks = Array.isArray(payload.list) ? payload.list : [];
     if (tasks.length === 0) {
@@ -620,11 +638,17 @@ async function collectFileCandidates(folderId, prefix = '', depth = 0) {
   return candidates;
 }
 
-async function waitForFileCandidates(folderId, onProgress) {
+async function waitForFileCandidates(folderId, onProgress, options = {}) {
   let lastError = null;
   for (let attempt = 0; attempt <= 20; attempt += 1) {
+    if (isOperationCancelled(options)) {
+      throw new Error('用户已取消任务');
+    }
     try {
       const rootItem = await getFileInfo(folderId).catch(() => null);
+      if (isOperationCancelled(options)) {
+        throw new Error('用户已取消任务');
+      }
       if (rootItem && !isDirectoryItem(rootItem)) {
         return [{
           fileId: rootItem.fileId,
@@ -638,11 +662,17 @@ async function waitForFileCandidates(folderId, onProgress) {
         }];
       }
       const candidates = await collectFileCandidates(folderId);
+      if (isOperationCancelled(options)) {
+        throw new Error('用户已取消任务');
+      }
       if (candidates.length > 0) {
         return candidates;
       }
     } catch (error) {
       lastError = error;
+    }
+    if (isOperationCancelled(options)) {
+      throw new Error('用户已取消任务');
     }
     if (typeof onProgress === 'function') {
       onProgress(attempt + 1);
@@ -721,16 +751,58 @@ async function saveSelectedFiles(magnet, selectedOptions, playAfterSave) {
   state.busy = true;
   const canSelectByIndex = selectedOptions.every((item) => item.fileIndex !== null);
   const fileIndexes = canSelectByIndex ? selectedOptions.map((item) => item.fileIndex) : null;
-  const progress = showProgressModal('保存文件', `准备保存 ${selectedOptions.length} 个文件`);
+  const cancelState = {
+    requested: false,
+    taskId: '',
+    finished: false,
+    failed: false,
+  };
+  function showCancelResult(title, message, tone) {
+    if (cancelState.finished) {
+      return;
+    }
+    cancelState.finished = true;
+    progress.close();
+    showToast(title, message, tone);
+  }
+  const requestCancel = async () => {
+    cancelState.requested = true;
+    progress.update('正在取消任务', cancelState.taskId ? `taskId=${cancelState.taskId}` : '等待任务创建完成后取消');
+    if (!cancelState.taskId) {
+      return;
+    }
+    try {
+      await cancelCloudTask(cancelState.taskId);
+      showCancelResult('已取消任务', '云添加任务已请求取消。', 'success');
+    } catch (error) {
+      cancelState.failed = true;
+      showCancelResult('取消失败', errorToMessage(error), 'error');
+    }
+  };
+  const progress = showProgressModal('保存文件', `准备保存 ${selectedOptions.length} 个文件`, {
+    cancelText: '退出并取消',
+    cancelingText: '正在取消...',
+    onCancel: requestCancel,
+  });
   try {
     progress.update('创建云添加任务', fileIndexes ? `保存 ${selectedOptions.length} 个文件` : '保存完整资源');
     const taskId = await createTask(magnet, fileIndexes);
+    cancelState.taskId = taskId;
+    if (cancelState.requested) {
+      await requestCancel();
+      return;
+    }
     progress.update('等待云添加完成', `taskId=${taskId}`);
     const task = await pollTask(taskId, (taskInfo) => {
       const status = safeInt(taskInfo.status, -1);
       const progressValue = taskInfo.progress === undefined ? '-' : `${taskInfo.progress}%`;
       progress.update('等待云添加完成', `status=${status} progress=${progressValue} ${taskInfo.fileName || ''}`.trim());
+    }, {
+      isCancelled: () => cancelState.requested,
     });
+    if (cancelState.requested) {
+      return;
+    }
     const folderId = String(task.fileId || '');
     if (!folderId) {
       throw new Error('云添加完成，但任务没有返回结果目录 fileId');
@@ -739,7 +811,12 @@ async function saveSelectedFiles(magnet, selectedOptions, playAfterSave) {
     progress.update('读取剧集列表', '读取中...');
     const candidates = await waitForFileCandidates(folderId, (attempt) => {
       progress.update('读取剧集列表', `等待目录 (${attempt}/21)`);
+    }, {
+      isCancelled: () => cancelState.requested,
     });
+    if (cancelState.requested) {
+      return;
+    }
     const playableItems = candidates.sort((a, b) => naturalCompare(a.path, b.path));
     progress.close();
 
@@ -754,6 +831,12 @@ async function saveSelectedFiles(magnet, selectedOptions, playAfterSave) {
     }
   } catch (error) {
     progress.close();
+    if (cancelState.requested) {
+      if (!cancelState.failed) {
+        showCancelResult('已取消任务', '云添加任务已请求取消。', 'success');
+      }
+      return;
+    }
     showErrorModal('保存或播放准备失败', buildFriendlyError(error));
   } finally {
     state.busy = false;

@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         光鸭云盘磁力播放助手
 // @namespace    https://www.guangyapan.com/
-// @version      0.9.5
+// @version      0.9.6
 // @description  点击 magnet 后解析、保存并播放。
 // @author       opencode
 // @match        *://*/*
 // @require      https://cdn.jsdelivr.net/npm/artplayer@5.4.0/dist/artplayer.js
-// @require      https://raw.githubusercontent.com/fengyinxia/guangya/main/gyp-auth-api.js?v=0.9.5
-// @require      https://raw.githubusercontent.com/fengyinxia/guangya/main/gyp-magnet.js?v=0.9.5
-// @require      https://raw.githubusercontent.com/fengyinxia/guangya/main/gyp-dialogs.js?v=0.9.5
-// @require      https://raw.githubusercontent.com/fengyinxia/guangya/main/gyp-player.js?v=0.9.5
+// @require      https://raw.githubusercontent.com/fengyinxia/guangya/main/gyp-auth-api.js?v=0.9.6
+// @require      https://raw.githubusercontent.com/fengyinxia/guangya/main/gyp-magnet.js?v=0.9.6
+// @require      https://raw.githubusercontent.com/fengyinxia/guangya/main/gyp-dialogs.js?v=0.9.6
+// @require      https://raw.githubusercontent.com/fengyinxia/guangya/main/gyp-player.js?v=0.9.6
 // @connect      api.guangyapan.com
 // @connect      account.guangyapan.com
 // @grant        GM_xmlhttpRequest

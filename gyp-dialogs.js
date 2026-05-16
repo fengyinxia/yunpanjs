@@ -112,13 +112,33 @@ function cardHeader(title, subtitle, onClose) {
   ]);
 }
 
-function showProgressModal(title, message) {
+function showProgressModal(title, message, options = {}) {
   const titleNode = createElement('h2', { text: title });
   const messageNode = createElement('p', { className: 'gyp-progress-message', text: message });
+  let cancelButton = null;
+  if (typeof options.onCancel === 'function') {
+    cancelButton = createElement('button', {
+      className: 'gyp-button gyp-button-secondary',
+      type: 'button',
+      text: options.cancelText || '退出',
+      onclick: async () => {
+        cancelButton.disabled = true;
+        cancelButton.textContent = options.cancelingText || '正在取消...';
+        try {
+          await options.onCancel();
+        } catch (error) {
+          cancelButton.disabled = false;
+          cancelButton.textContent = options.cancelText || '退出';
+          showToast(options.cancelErrorTitle || '取消失败', errorToMessage(error), 'error');
+        }
+      },
+    });
+  }
   const card = createElement('section', { className: 'gyp-card gyp-progress-card' }, [
     createElement('div', { className: 'gyp-loader' }),
     titleNode,
     messageNode,
+    cancelButton ? createElement('div', { className: 'gyp-actions gyp-progress-actions' }, [cancelButton]) : null,
   ]);
   mountModal(card, { closeOnBackdrop: false });
   return {
@@ -672,6 +692,7 @@ function buildStyles() {
       animation: gyp-spin 0.9s linear infinite;
     }
     .gyp-progress-message { margin-top: 12px; color: #c4d9e9; font-size: 14px; line-height: 1.7; }
+    .gyp-progress-actions { justify-content: center; }
     .gyp-muted { margin-top: 10px; color: #7e94a6; font-size: 12px; line-height: 1.6; }
     .gyp-muted-block {
       margin: 12px 0;
