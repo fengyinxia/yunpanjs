@@ -169,12 +169,17 @@ function showErrorModal(title, message) {
 }
 
 function showSelectionModal(context) {
-  const selectedCount = createElement('span', { text: '0' });
-  const selectedSize = createElement('span', { text: '0B' });
-  const checkboxNodes = [];
-  const rows = context.options.map((item) => {
+  const summaryText = createElement('span', { className: 'gyp-selection-summary', text: '' });
+  const filterInput = createElement('input', { className: 'gyp-selection-search', type: 'search', placeholder: '搜索文件名...' });
+  const typeSelect = createElement('select', { className: 'gyp-selection-type' }, [
+    createElement('option', { value: 'all', text: '全部类型' }),
+    createElement('option', { value: 'video', text: '视频' }),
+    createElement('option', { value: 'audio', text: '音频' }),
+    createElement('option', { value: 'subtitle', text: '字幕' }),
+    createElement('option', { value: 'other', text: '其他' }),
+  ]);
+  const entries = context.options.map((item) => {
     const checkbox = createElement('input', { type: 'checkbox', checked: true });
-    checkboxNodes.push({ checkbox, item });
     const row = createElement('label', { className: 'gyp-file-row' }, [
       createElement('span', { className: 'gyp-checkbox-shell' }, [checkbox]),
       createElement('span', { className: 'gyp-file-main' }, [
@@ -183,22 +188,65 @@ function showSelectionModal(context) {
       ]),
     ]);
     checkbox.addEventListener('change', refreshSummary);
-    return row;
+    return { checkbox, item, row };
   });
+  const fileList = createElement('div', { className: 'gyp-file-list' }, entries.map((entry) => entry.row));
 
   function getSelectedOptions() {
-    return checkboxNodes.filter((entry) => entry.checkbox.checked).map((entry) => entry.item);
+    return entries.filter((entry) => entry.checkbox.checked).map((entry) => entry.item);
+  }
+
+  function getItemType(item) {
+    const fileType = safeInt(item && item.fileType, 0);
+    if (fileType === 2) {
+      return 'video';
+    }
+    if (fileType === 3) {
+      return 'audio';
+    }
+    if (fileType === 6) {
+      return 'subtitle';
+    }
+    const path = String((item && (item.path || item.fileName)) || '').toLowerCase();
+    if (/\.(mp4|mkv|avi|mov|wmv|flv|webm|m4v|ts)$/i.test(path)) {
+      return 'video';
+    }
+    if (/\.(mp3|flac|aac|wav|m4a|ogg)$/i.test(path)) {
+      return 'audio';
+    }
+    if (/\.(srt|ass|ssa|vtt)$/i.test(path)) {
+      return 'subtitle';
+    }
+    return 'other';
+  }
+
+  function matchesFilter(entry) {
+    const keyword = filterInput.value.trim().toLowerCase();
+    const type = typeSelect.value;
+    const path = String((entry.item && (entry.item.path || entry.item.fileName)) || '').toLowerCase();
+    return (!keyword || path.includes(keyword)) && (type === 'all' || getItemType(entry.item) === type);
+  }
+
+  function getVisibleEntries() {
+    return entries.filter(matchesFilter);
   }
 
   function refreshSummary() {
     const selected = getSelectedOptions();
-    selectedCount.textContent = String(selected.length);
-    selectedSize.textContent = formatSize(selected.reduce((sum, item) => sum + item.fileSize, 0));
+    const selectedSize = selected.reduce((sum, item) => sum + item.fileSize, 0);
+    summaryText.textContent = `已选 ${selected.length}/${getVisibleEntries().length} · ${formatSize(selectedSize)}`;
   }
 
   function setAll(checked) {
-    for (const entry of checkboxNodes) {
+    for (const entry of getVisibleEntries()) {
       entry.checkbox.checked = checked;
+    }
+    refreshSummary();
+  }
+
+  function applyFilter() {
+    for (const entry of entries) {
+      entry.row.hidden = !matchesFilter(entry);
     }
     refreshSummary();
   }
@@ -209,52 +257,41 @@ function showSelectionModal(context) {
       showToast('没有选择文件', '请选择文件。', 'warn');
       return;
     }
-    if (selected.some((item) => item.fileIndex === null) && selected.length !== checkboxNodes.length) {
+    if (selected.some((item) => item.fileIndex === null) && selected.length !== entries.length) {
       showToast('保存完整资源', '', 'warn');
-      setAll(true);
+      for (const entry of entries) {
+        entry.checkbox.checked = true;
+      }
+      refreshSummary();
       return;
     }
     clearModal();
     saveSelectedFiles(context.magnet, selected, playAfterSave);
   }
 
+  filterInput.addEventListener('input', applyFilter);
+  typeSelect.addEventListener('change', applyFilter);
+
   const card = createElement('section', { className: 'gyp-card gyp-card-wide' }, [
-    cardHeader('解析成功，选择要保存的文件', context.title, clearModal),
+    createElement('div', { className: 'gyp-selection-title', text: context.title || '磁力资源' }),
     createElement('div', { className: 'gyp-card-body' }, [
-      createElement('div', { className: 'gyp-summary-grid' }, [
-        createElement('div', {}, [createElement('span', { text: '可选文件' }), createElement('strong', { text: `${context.options.length} 个` })]),
-        createElement('div', {}, [createElement('span', { text: '已选择' }), createElement('strong', {}, [selectedCount, document.createTextNode(' 个')])]),
-        createElement('div', {}, [createElement('span', { text: '选择大小' }), createElement('strong', {}, [selectedSize])]),
+      createElement('div', { className: 'gyp-selection-controlbar' }, [
+        createElement('div', { className: 'gyp-selection-filters' }, [filterInput, typeSelect]),
+        createElement('div', { className: 'gyp-selection-meta' }, [
+          summaryText,
+          createElement('button', { className: 'gyp-text-button', type: 'button', text: '全选', onclick: () => setAll(true) }),
+          createElement('button', { className: 'gyp-text-button', type: 'button', text: '清空', onclick: () => setAll(false) }),
+        ]),
       ]),
-      createElement('div', { className: 'gyp-toolbar' }, [
-        createElement('button', { className: 'gyp-text-button', type: 'button', text: '全选', onclick: () => setAll(true) }),
-        createElement('button', { className: 'gyp-text-button', type: 'button', text: '全不选', onclick: () => setAll(false) }),
-        createElement('button', {
-          className: 'gyp-text-button',
-          type: 'button',
-          text: '反选',
-          onclick: () => {
-            for (const entry of checkboxNodes) {
-              entry.checkbox.checked = !entry.checkbox.checked;
-            }
-            refreshSummary();
-          },
-        }),
-      ]),
-      createElement('div', { className: 'gyp-file-list' }, rows),
-      createElement('details', { className: 'gyp-details' }, [
-        createElement('summary', { text: '查看原始磁力链接' }),
-        createElement('textarea', { readonly: 'readonly', text: context.magnet }),
-      ]),
+      fileList,
       createElement('div', { className: 'gyp-actions' }, [
-        createElement('button', { className: 'gyp-button gyp-button-secondary', type: 'button', text: '取消', onclick: clearModal }),
         createElement('button', { className: 'gyp-button gyp-button-secondary', type: 'button', text: '仅保存', onclick: () => start(false) }),
         createElement('button', { className: 'gyp-button gyp-button-primary', type: 'button', text: '保存并播放', onclick: () => start(true) }),
       ]),
     ]),
   ]);
   mountModal(card);
-  refreshSummary();
+  applyFilter();
 }
 
 function showSettingsModal() {
@@ -584,22 +621,66 @@ function buildStyles() {
       line-height: 1.7;
     }
     .gyp-alert-error { border-color: rgba(255, 112, 112, 0.34); background: rgba(255, 82, 82, 0.1); color: #ffd6d6; }
-    .gyp-summary-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
+    .gyp-selection-title {
+      overflow: hidden;
+      padding: 20px 26px 14px;
+      border-bottom: 1px solid rgba(126, 211, 255, 0.14);
+      color: #f6fdff;
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1.35;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .gyp-selection-controlbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
       margin-bottom: 14px;
-    }
-    .gyp-summary-grid > div {
-      min-width: 0;
-      padding: 14px 16px;
+      padding: 10px 12px;
+      border: 1px solid rgba(126, 211, 255, 0.13);
       border-radius: 18px;
-      background: rgba(255, 255, 255, 0.055);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.045);
     }
-    .gyp-summary-grid span { display: block; color: #91aabd; font-size: 12px; }
-    .gyp-summary-grid strong { display: block; margin-top: 6px; color: #f7fdff; font-size: 20px; }
-    .gyp-toolbar { display: flex; gap: 12px; margin: 8px 0 14px; }
+    .gyp-selection-filters {
+      display: flex;
+      flex: 1 1 auto;
+      gap: 10px;
+      min-width: 260px;
+    }
+    .gyp-selection-search,
+    .gyp-selection-type {
+      min-height: 34px;
+      border: 1px solid rgba(126, 211, 255, 0.16);
+      border-radius: 999px;
+      background: rgba(3, 12, 24, 0.58);
+      color: #e9fbff;
+      font: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+    .gyp-selection-search {
+      width: min(260px, 34vw);
+      padding: 0 14px;
+    }
+    .gyp-selection-type {
+      flex: 0 0 auto;
+      padding: 0 12px;
+    }
+    .gyp-selection-search:focus,
+    .gyp-selection-type:focus { border-color: rgba(102, 224, 255, 0.48); }
+    .gyp-selection-meta {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 12px;
+      color: #a9bdcf;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .gyp-selection-summary { color: #eafcff; font-weight: 800; }
     .gyp-text-button {
       border: 0;
       background: transparent;
@@ -629,6 +710,7 @@ function buildStyles() {
       cursor: pointer;
     }
     .gyp-file-row:hover { border-color: rgba(102, 224, 255, 0.35); background: rgba(102, 224, 255, 0.075); }
+    .gyp-file-row[hidden] { display: none; }
     .gyp-checkbox-shell input { width: 18px; height: 18px; accent-color: #33d6a6; }
     .gyp-file-main { min-width: 0; }
     .gyp-file-main strong, .gyp-episode-info strong {
@@ -1013,8 +1095,13 @@ function buildStyles() {
       .gyp-card, .gyp-card-wide { width: 100%; max-height: calc(100vh - 20px); border-radius: 20px; }
       .gyp-player-card { width: 100%; height: auto; max-height: calc(100vh - 20px); border-radius: 14px; }
       .gyp-card-header { padding: 18px; }
+      .gyp-selection-title { padding: 16px 18px 12px; font-size: 16px; }
       .gyp-card-body { padding: 18px; max-height: calc(100vh - 132px); }
-      .gyp-summary-grid, .gyp-form-grid { grid-template-columns: 1fr; }
+      .gyp-form-grid { grid-template-columns: 1fr; }
+      .gyp-selection-controlbar { align-items: stretch; flex-direction: column; }
+      .gyp-selection-filters { width: 100%; min-width: 0; }
+      .gyp-selection-search { width: 100%; flex: 1 1 auto; }
+      .gyp-selection-meta { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
       .gyp-player-floating { top: 10px; width: calc(100% - 96px); }
       .gyp-player-title { display: -webkit-box; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
       .gyp-player-layout { --gyp-playlist-width: min(360px, 88vw); height: 100%; }
