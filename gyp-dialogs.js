@@ -305,44 +305,49 @@ function getDisplayFileName(item) {
   return parts.length > 0 ? parts[parts.length - 1] : '未命名文件';
 }
 
-function triggerBrowserDownload(url, name, callbacks = {}) {
-  if (typeof GM_download === 'function') {
-    GM_download({
-      url,
-      name,
-      saveAs: false,
-      onload: callbacks.onload,
-      onerror: callbacks.onerror,
-      ontimeout: callbacks.onerror,
-    });
-    return;
-  }
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = name;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.click();
-  if (typeof callbacks.onload === 'function') {
-    callbacks.onload();
-  }
+function sanitizeDownloadFileName(name) {
+  return String(name || '未命名文件').replace(/[\\/:*?"<>|]+/g, '_').trim() || '未命名文件';
 }
 
 function showDownloadListModal(items) {
+  const maxConcurrent = 3;
   const rows = [];
+  let preloadDone = false;
+  let copyAllButton = null;
   const entries = (Array.isArray(items) ? items : []).map((item, index) => {
     const fileName = getDisplayFileName(item);
-    const stateInfo = { url: '', loading: false, error: '' };
+    const stateInfo = { url: '', loading: false, error: '', promise: null };
     const nameNode = createElement('strong', { text: fileName });
     const sizeNode = createElement('small', { text: formatSize(item && item.fileSize) });
-    const statusNode = createElement('span', { className: 'gyp-download-status', text: '' });
-    const downloadButton = createElement('button', { className: 'gyp-text-button', type: 'button', text: '下载' });
-    const copyButton = createElement('button', { className: 'gyp-text-button', type: 'button', text: '复制' });
+    const statusNode = createElement('span', { className: 'gyp-download-status', text: '等待中' });
+    const downloadLink = createElement('a', { className: 'gyp-text-button gyp-download-link is-disabled', href: '#', text: '下载', 'aria-disabled': 'true' });
+    const copyButton = createElement('button', { className: 'gyp-text-button', type: 'button', text: '复制', disabled: true });
+
+    function refreshCopyAllButton() {
+      if (!copyAllButton) {
+        return;
+      }
+      copyAllButton.disabled = !preloadDone || !entries.some((entry) => entry.getUrl());
+    }
+
+    function setDownloadLink(url) {
+      stateInfo.url = String(url || '');
+      downloadLink.href = stateInfo.url;
+      downloadLink.download = sanitizeDownloadFileName(fileName);
+      downloadLink.target = '_blank';
+      downloadLink.rel = 'noopener noreferrer';
+      downloadLink.classList.remove('is-disabled');
+      downloadLink.removeAttribute('aria-disabled');
+      copyButton.disabled = false;
+      statusNode.textContent = '';
+      statusNode.title = '';
+      statusNode.classList.remove('is-error');
+      refreshCopyAllButton();
+    }
 
     function setBusy(loading) {
       stateInfo.loading = Boolean(loading);
-      downloadButton.disabled = stateInfo.loading;
-      copyButton.disabled = stateInfo.loading;
+      copyButton.disabled = stateInfo.loading || !stateInfo.url;
       statusNode.textContent = stateInfo.loading ? '获取中' : stateInfo.error;
       statusNode.classList.toggle('is-error', Boolean(stateInfo.error));
     }
@@ -351,46 +356,43 @@ function showDownloadListModal(items) {
       if (stateInfo.url) {
         return stateInfo.url;
       }
+      if (stateInfo.promise) {
+        return stateInfo.promise;
+      }
       stateInfo.error = '';
       setBusy(true);
-      try {
+      stateInfo.promise = (async () => {
         const link = await fetchPlayableUrl(item.fileId);
-        stateInfo.url = link.url;
-        statusNode.textContent = '';
+        setDownloadLink(link.url);
         return stateInfo.url;
+      })();
+      try {
+        return await stateInfo.promise;
       } catch (error) {
         stateInfo.error = '失败';
         statusNode.title = errorToMessage(error);
+        downloadLink.classList.remove('is-disabled');
+        downloadLink.removeAttribute('aria-disabled');
         throw error;
       } finally {
+        stateInfo.promise = null;
         setBusy(false);
       }
     }
 
-    downloadButton.addEventListener('click', async () => {
-      try {
-        const url = await getDownloadUrl();
-        triggerBrowserDownload(url, fileName, {
-          onload: () => {
-            statusNode.textContent = '';
-          },
-          onerror: (error) => {
-            stateInfo.error = '失败';
-            statusNode.textContent = '失败';
-            statusNode.title = errorToMessage(error);
-            statusNode.classList.add('is-error');
-          },
-        });
-      } catch (error) {
-        showToast('获取下载链接失败', errorToMessage(error), 'error');
+    downloadLink.addEventListener('click', (event) => {
+      if (stateInfo.url) {
+        return;
+      }
+      event.preventDefault();
+      if (!stateInfo.loading) {
+        getDownloadUrl().catch((error) => showToast('获取下载链接失败', errorToMessage(error), 'error'));
       }
     });
 
-    copyButton.addEventListener('click', async () => {
-      try {
-        copyText(await getDownloadUrl());
-      } catch (error) {
-        showToast('获取下载链接失败', errorToMessage(error), 'error');
+    copyButton.addEventListener('click', () => {
+      if (stateInfo.url) {
+        copyText(stateInfo.url);
       }
     });
 
@@ -398,34 +400,42 @@ function showDownloadListModal(items) {
       createElement('span', { className: 'gyp-download-index', text: String(index + 1).padStart(2, '0') }),
       createElement('span', { className: 'gyp-download-main' }, [nameNode, sizeNode]),
       statusNode,
-      createElement('span', { className: 'gyp-download-actions' }, [downloadButton, copyButton]),
+      createElement('span', { className: 'gyp-download-actions' }, [downloadLink, copyButton]),
     ]);
     rows.push(row);
-    return { getDownloadUrl };
+    return { getDownloadUrl, getUrl: () => stateInfo.url };
   });
 
-  const copyAllButton = createElement('button', {
+  copyAllButton = createElement('button', {
     className: 'gyp-button gyp-button-secondary',
     type: 'button',
     text: '复制全部链接',
-    disabled: entries.length === 0,
-    onclick: async () => {
-      copyAllButton.disabled = true;
-      copyAllButton.textContent = '获取中';
-      try {
-        const urls = [];
-        for (const entry of entries) {
-          urls.push(await entry.getDownloadUrl());
-        }
-        copyText(urls.join('\n'));
-      } catch (error) {
-        showToast('复制失败', errorToMessage(error), 'error');
-      } finally {
-        copyAllButton.disabled = entries.length === 0;
-        copyAllButton.textContent = '复制全部链接';
+    disabled: true,
+    onclick: () => {
+      const urls = entries.map((entry) => entry.getUrl()).filter(Boolean);
+      if (urls.length === 0) {
+        showToast('没有可复制链接', '', 'warn');
+        return;
       }
+      copyText(urls.join('\n'));
     },
   });
+
+  async function preloadDownloadUrls() {
+    let cursor = 0;
+    async function worker() {
+      while (cursor < entries.length) {
+        const entry = entries[cursor];
+        cursor += 1;
+        try {
+          await entry.getDownloadUrl();
+        } catch (_) {}
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(maxConcurrent, entries.length) }, worker));
+    preloadDone = true;
+    refreshCopyAllButton();
+  }
 
   const card = createElement('section', { className: 'gyp-card gyp-download-card' }, [
     createElement('div', { className: 'gyp-download-header' }, [
@@ -443,6 +453,7 @@ function showDownloadListModal(items) {
     ]),
   ]);
   mountModal(card);
+  preloadDownloadUrls();
 }
 
 function showSettingsModal() {
@@ -841,6 +852,14 @@ function buildStyles() {
       font-size: 13px;
       font-weight: 700;
     }
+    .gyp-text-button:disabled,
+    .gyp-text-button.is-disabled {
+      color: #607080;
+      cursor: not-allowed;
+      opacity: 0.66;
+      pointer-events: none;
+    }
+    a.gyp-text-button { text-decoration: none; }
     .gyp-text-button:hover { color: #9df1ff; }
     .gyp-file-list {
       display: grid;
