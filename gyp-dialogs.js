@@ -898,7 +898,7 @@ function buildStyles() {
       color: #d8d8d8;
       font-size: 14px;
       font-weight: 400;
-      line-height: 28px;
+      line-height: 20px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -1253,10 +1253,12 @@ function buildStyles() {
       scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
     }
     .gyp-episode {
-      display: block;
+      display: flex;
+      align-items: center;
       width: 100%;
+      min-height: 40px;
       margin: 0;
-      padding: 0 14px;
+      padding: 0 16px;
       border: 0;
       border-radius: 0;
       background: transparent;
@@ -1355,6 +1357,7 @@ function buildStyles() {
         grid-template-rows: auto minmax(0, 1fr);
         border-left: 0;
       }
+      .gyp-episode { min-height: 44px; }
       .gyp-playlist-toggle {
         width: 28px;
         height: 56px;
