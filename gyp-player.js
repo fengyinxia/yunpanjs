@@ -259,7 +259,6 @@ function showPlayerModal(videos, meta) {
       'aria-label': `播放第 ${index + 1} 集：${item.fileName}`,
       onclick: () => playAt(index),
     }, [
-      createElement('span', { className: 'gyp-episode-index', text: String(index + 1).padStart(2, '0') }),
       createElement('span', { className: 'gyp-episode-info' }, [
         createElement('strong', { text: item.fileName }),
       ]),

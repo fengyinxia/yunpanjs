@@ -883,12 +883,22 @@ function buildStyles() {
     .gyp-file-row[hidden] { display: none; }
     .gyp-checkbox-shell input { width: 18px; height: 18px; accent-color: #33d6a6; }
     .gyp-file-main { min-width: 0; }
-    .gyp-file-main strong, .gyp-episode-info strong {
+    .gyp-file-main strong {
       display: block;
       overflow: hidden;
       color: #eefbff;
       font-size: 14px;
       line-height: 1.45;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .gyp-episode-info strong {
+      display: block;
+      overflow: hidden;
+      color: #d8d8d8;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 28px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -1162,16 +1172,15 @@ function buildStyles() {
       min-width: 0;
       min-height: 0;
       grid-template-rows: minmax(0, 1fr);
-      border-left: 1px solid rgba(170, 185, 210, 0.14);
-      background: linear-gradient(180deg, rgba(17, 21, 31, 0.94), rgba(9, 11, 16, 0.98)), #0e1118;
-      box-shadow: -26px 0 70px rgba(0, 0, 0, 0.44);
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+      background: #111;
+      box-shadow: none;
       transform: translateX(100%);
-      transition: transform 240ms ease, box-shadow 240ms ease;
+      transition: transform 180ms ease;
       will-change: transform;
     }
     .gyp-player-playlist.is-open {
       transform: translateX(0);
-      box-shadow: -16px 0 44px rgba(0, 0, 0, 0.32);
     }
     .art-video-player > .gyp-player-playlist {
       z-index: 99;
@@ -1239,67 +1248,33 @@ function buildStyles() {
     .gyp-episode-list {
       min-height: 0;
       overflow: auto;
-      padding: 12px;
+      padding: 8px 0;
       scrollbar-width: thin;
-      scrollbar-color: rgba(114, 215, 255, 0.26) transparent;
+      scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
     }
     .gyp-episode {
-      position: relative;
-      display: grid;
+      display: block;
       width: 100%;
-      grid-template-columns: 44px minmax(0, 1fr);
-      gap: 12px;
-      align-items: center;
-      margin: 0 0 9px;
-      padding: 12px;
-      border: 1px solid transparent;
-      border-radius: 18px;
+      margin: 0;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 0;
       background: transparent;
       color: inherit;
       cursor: pointer;
       font: inherit;
       text-align: left;
-      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
-    }
-    .gyp-episode::before {
-      position: absolute;
-      inset: 12px auto 12px 0;
-      width: 3px;
-      border-radius: 999px;
-      background: transparent;
-      content: "";
+      transition: background 120ms ease;
     }
     .gyp-episode:hover {
-      border-color: rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.045);
-      transform: translateX(-2px);
+      background: #1f1f1f;
     }
     .gyp-episode.is-active {
-      border-color: rgba(114, 215, 255, 0.28);
-      background: linear-gradient(90deg, rgba(114, 215, 255, 0.13), rgba(255, 255, 255, 0.045)), rgba(255, 255, 255, 0.04);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      background: #2a2a2a;
     }
-    .gyp-episode.is-active::before {
-      background: #72d7ff;
-      box-shadow: 0 0 18px rgba(114, 215, 255, 0.8);
-    }
-    .gyp-episode-index {
-      display: grid;
-      width: 42px;
-      height: 42px;
-      place-items: center;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.045);
-      color: #c8d3e4;
-      font-size: 13px;
-      font-weight: 900;
-      letter-spacing: 0.04em;
-    }
-    .gyp-episode.is-active .gyp-episode-index {
-      border-color: rgba(114, 215, 255, 0.4);
-      background: rgba(114, 215, 255, 0.13);
-      color: #ecfbff;
+    .gyp-episode.is-active .gyp-episode-info strong {
+      color: #fff;
+      font-weight: 500;
     }
     .gyp-field { display: grid; gap: 8px; margin-bottom: 16px; color: #d8edf7; font-size: 13px; font-weight: 800; }
     .gyp-field > span { color: #eaf9ff; }
