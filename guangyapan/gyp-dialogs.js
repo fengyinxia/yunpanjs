@@ -1172,9 +1172,9 @@ function buildStyles() {
       min-width: 0;
       min-height: 0;
       grid-template-rows: minmax(0, 1fr);
-      border-left: 1px solid rgba(255, 255, 255, 0.1);
-      background: #111;
-      box-shadow: none;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      background: #151619;
+      box-shadow: -18px 0 48px rgba(0, 0, 0, 0.32);
       transform: translateX(100%);
       transition: transform 180ms ease;
       will-change: transform;
@@ -1248,35 +1248,93 @@ function buildStyles() {
     .gyp-episode-list {
       min-height: 0;
       overflow: auto;
-      padding: 8px 0;
+      padding: 18px 20px 22px;
       scrollbar-width: thin;
       scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
     }
     .gyp-episode {
       display: flex;
-      align-items: center;
+      align-items: stretch;
+      gap: 12px;
       width: 100%;
-      min-height: 40px;
-      margin: 0;
-      padding: 0 16px;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
+      min-height: 102px;
+      margin: 0 0 12px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      background: #1b1c20;
       color: inherit;
       cursor: pointer;
       font: inherit;
       text-align: left;
-      transition: background 120ms ease;
+      transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
     }
+    .gyp-episode:last-child { margin-bottom: 0; }
     .gyp-episode:hover {
-      background: #1f1f1f;
+      border-color: rgba(255, 255, 255, 0.1);
+      background: #22242a;
     }
     .gyp-episode.is-active {
-      background: #2a2a2a;
+      border-color: rgba(77, 141, 255, 0.45);
+      background: #20242d;
+      box-shadow: inset 0 0 0 1px rgba(77, 141, 255, 0.2);
+    }
+    .gyp-episode-thumb {
+      position: relative;
+      flex: none;
+      width: 124px;
+      height: 78px;
+      overflow: hidden;
+      border-radius: 10px;
+      background: #0d0d0d center / cover no-repeat;
+    }
+    .gyp-episode-thumb::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.18) 52%, rgba(0, 0, 0, 0.42));
+    }
+    .gyp-episode-duration {
+      position: absolute;
+      right: 8px;
+      bottom: 6px;
+      z-index: 1;
+      color: #fff;
+      font-size: 12px;
+      line-height: 1;
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65);
+    }
+    .gyp-episode-content {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      flex-direction: column;
+      justify-content: space-between;
     }
     .gyp-episode.is-active .gyp-episode-info strong {
       color: #fff;
       font-weight: 500;
+    }
+    .gyp-episode-info { min-width: 0; }
+    .gyp-episode-status {
+      color: rgba(255, 255, 255, 0.52);
+      font-size: 13px;
+      line-height: 1.3;
+    }
+    .gyp-episode-progress {
+      display: block;
+      height: 4px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .gyp-episode-progress > span {
+      display: block;
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: #4d8dff;
+      transition: width 180ms ease;
     }
     .gyp-field { display: grid; gap: 8px; margin-bottom: 16px; color: #d8edf7; font-size: 13px; font-weight: 800; }
     .gyp-field > span { color: #eaf9ff; }
@@ -1357,7 +1415,8 @@ function buildStyles() {
         grid-template-rows: auto minmax(0, 1fr);
         border-left: 0;
       }
-      .gyp-episode { min-height: 44px; }
+      .gyp-episode-list { padding: 14px; }
+      .gyp-episode { min-height: 94px; }
       .gyp-playlist-toggle {
         width: 28px;
         height: 56px;
@@ -1406,6 +1465,7 @@ function buildStyles() {
         bottom: min(72vh, 560px);
       }
       .gyp-playlist-backdrop { background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.48)); }
+      .gyp-episode-thumb { width: 110px; height: 70px; }
     }
   `;
 }

@@ -39,6 +39,66 @@ function showPlayerModal(videos, meta) {
       } else {
         button.removeAttribute('aria-current');
       }
+      const statusNode = button.querySelector('.gyp-episode-status');
+      if (statusNode) {
+        statusNode.textContent = active ? '正在播放' : '待播放';
+      }
+      if (!active) {
+        const progressNode = button.querySelector('.gyp-episode-progress > span');
+        if (progressNode) {
+          progressNode.style.width = '0%';
+        }
+      }
+    }
+  }
+
+  function formatDuration(value) {
+    const totalSeconds = Math.floor(Number(value) || 0);
+    if (totalSeconds <= 0) {
+      return '--:--';
+    }
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  function getVideoDuration() {
+    if (art && art.video) {
+      return Number(art.video.duration) || 0;
+    }
+    return 0;
+  }
+
+  function getVideoCurrentTime() {
+    if (art && art.video) {
+      return Number(art.video.currentTime) || 0;
+    }
+    return 0;
+  }
+
+  function updateActiveEpisodeProgress() {
+    const activeButton = episodeButtons[currentIndex];
+    if (!activeButton) {
+      return;
+    }
+    const duration = getVideoDuration();
+    const currentTime = getVideoCurrentTime();
+    const percent = duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
+    const statusNode = activeButton.querySelector('.gyp-episode-status');
+    const progressNode = activeButton.querySelector('.gyp-episode-progress > span');
+    const durationNode = activeButton.querySelector('.gyp-episode-duration');
+    if (statusNode) {
+      statusNode.textContent = duration > 0 && percent > 0 ? `已观看 ${Math.round(percent)}%` : '正在播放';
+    }
+    if (progressNode) {
+      progressNode.style.width = `${percent}%`;
+    }
+    if (durationNode && duration > 0) {
+      durationNode.textContent = formatDuration(duration);
     }
   }
 
@@ -174,6 +234,9 @@ function showPlayerModal(videos, meta) {
         art.notice.show = '播放失败';
       }
     });
+    art.on('video:timeupdate', updateActiveEpisodeProgress);
+    art.on('video:durationchange', updateActiveEpisodeProgress);
+    art.on('video:loadedmetadata', updateActiveEpisodeProgress);
     art.on('fullscreen', handleFullscreenChange);
     art.on('fullscreenWeb', handleFullscreenChange);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -209,6 +272,7 @@ function showPlayerModal(videos, meta) {
         art.switchUrl(link.url);
         art.title = item.fileName;
       }
+      updateActiveEpisodeProgress();
       scheduleChromeHide();
       const playPromise = art.play();
       if (playPromise && typeof playPromise.catch === 'function') {
@@ -252,6 +316,10 @@ function showPlayerModal(videos, meta) {
 
   const episodeList = createElement('div', { className: 'gyp-episode-list', 'aria-label': '剧集列表' });
   videos.forEach((item, index) => {
+    const thumbAttrs = { className: 'gyp-episode-thumb' };
+    if (item.thumbnail) {
+      thumbAttrs.style = `background-image:url("${String(item.thumbnail).replace(/"/g, '%22')}")`;
+    }
     const button = createElement('button', {
       className: 'gyp-episode',
       type: 'button',
@@ -259,8 +327,17 @@ function showPlayerModal(videos, meta) {
       'aria-label': `播放第 ${index + 1} 集：${item.fileName}`,
       onclick: () => playAt(index),
     }, [
-      createElement('span', { className: 'gyp-episode-info' }, [
-        createElement('strong', { text: item.fileName }),
+      createElement('span', thumbAttrs, [
+        createElement('span', { className: 'gyp-episode-duration', text: formatDuration(item.duration) }),
+      ]),
+      createElement('span', { className: 'gyp-episode-content' }, [
+        createElement('span', { className: 'gyp-episode-info' }, [
+          createElement('strong', { text: item.fileName }),
+        ]),
+        createElement('span', { className: 'gyp-episode-status', text: index === currentIndex ? '正在播放' : '待播放' }),
+        createElement('span', { className: 'gyp-episode-progress', 'aria-hidden': 'true' }, [
+          createElement('span'),
+        ]),
       ]),
     ]);
     episodeButtons.push(button);
