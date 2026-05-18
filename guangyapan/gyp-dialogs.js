@@ -1128,8 +1128,7 @@ function buildStyles() {
     }
     .gyp-artplayer-app .art-control-gyp-prev,
     .gyp-artplayer-app .art-control-gyp-next,
-    .gyp-artplayer-app .art-control-gyp-open,
-    .gyp-artplayer-app .art-control-gyp-copy {
+    .gyp-artplayer-app .art-control-gyp-download {
       min-width: auto !important;
       padding: 0 9px !important;
       border-radius: 8px !important;
@@ -1139,10 +1138,67 @@ function buildStyles() {
     }
     .gyp-artplayer-app .art-control-gyp-prev:hover,
     .gyp-artplayer-app .art-control-gyp-next:hover,
-    .gyp-artplayer-app .art-control-gyp-open:hover,
-    .gyp-artplayer-app .art-control-gyp-copy:hover {
+    .gyp-artplayer-app .art-control-gyp-download:hover {
       background: rgba(114, 215, 255, 0.16) !important;
       color: #fff !important;
+    }
+    .gyp-artplayer-app .art-control-gyp-prev,
+    .gyp-artplayer-app .art-control-gyp-next {
+      width: 38px !important;
+      height: 38px !important;
+      padding: 0 !important;
+      border-radius: 12px !important;
+      background: rgba(255, 255, 255, 0.04) !important;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+    }
+    .gyp-artplayer-app .art-control-gyp-prev:hover,
+    .gyp-artplayer-app .art-control-gyp-next:hover {
+      background: rgba(255, 255, 255, 0.12) !important;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18) !important;
+    }
+    .gyp-transport-icon {
+      position: relative;
+      display: block;
+      width: 18px;
+      height: 18px;
+      color: inherit;
+    }
+    .gyp-transport-icon::before,
+    .gyp-transport-icon::after {
+      position: absolute;
+      top: 50%;
+      content: "";
+      transform: translateY(-50%);
+    }
+    .gyp-transport-icon-prev::before {
+      left: 2px;
+      width: 2px;
+      height: 12px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+    .gyp-transport-icon-prev::after {
+      left: 6px;
+      width: 0;
+      height: 0;
+      border-top: 6px solid transparent;
+      border-right: 8px solid currentColor;
+      border-bottom: 6px solid transparent;
+    }
+    .gyp-transport-icon-next::before {
+      right: 2px;
+      width: 2px;
+      height: 12px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+    .gyp-transport-icon-next::after {
+      right: 6px;
+      width: 0;
+      height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 8px solid currentColor;
     }
     .gyp-player-loading {
       position: absolute;

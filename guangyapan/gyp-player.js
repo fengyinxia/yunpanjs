@@ -102,16 +102,19 @@ function showPlayerModal(videos, meta) {
     }
   }
 
-  function openCurrentLink() {
-    if (currentLink) {
-      window.open(currentLink, '_blank', 'noopener,noreferrer');
+  function downloadCurrentLink() {
+    if (!currentLink) {
+      return;
     }
-  }
-
-  function copyCurrentLink() {
-    if (currentLink) {
-      copyText(currentLink);
-    }
+    const item = videos[currentIndex] || {};
+    const link = document.createElement('a');
+    link.href = currentLink;
+    link.download = sanitizeDownloadFileName(item.fileName || '');
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   function setChromeIdle(idle) {
@@ -192,30 +195,23 @@ function showPlayerModal(videos, meta) {
         {
           name: 'gyp-prev',
           position: 'left',
-          html: '上一集',
+          html: '<span class="gyp-transport-icon gyp-transport-icon-prev" aria-hidden="true"></span>',
           tooltip: '上一集',
           click: () => playAt(currentIndex - 1),
         },
         {
           name: 'gyp-next',
           position: 'left',
-          html: '下一集',
+          html: '<span class="gyp-transport-icon gyp-transport-icon-next" aria-hidden="true"></span>',
           tooltip: '下一集',
           click: () => playAt(currentIndex + 1),
         },
         {
-          name: 'gyp-open',
+          name: 'gyp-download',
           position: 'right',
-          html: '打开',
-          tooltip: '打开当前播放链接',
-          click: openCurrentLink,
-        },
-        {
-          name: 'gyp-copy',
-          position: 'right',
-          html: '复制',
-          tooltip: '复制当前播放链接',
-          click: copyCurrentLink,
+          html: '下载',
+          tooltip: '下载当前视频',
+          click: downloadCurrentLink,
         },
       ],
       icons: {
