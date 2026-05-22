@@ -460,6 +460,7 @@ function showSettingsModal() {
   syncAuthFromCurrentPage({ silent: true });
   const config = getConfig();
   const accessTokenInput = createElement('textarea', { className: 'gyp-input gyp-token-input', placeholder: 'Bearer token 或 access_token', text: config.accessToken || '' });
+  const refreshTokenInput = createElement('input', { className: 'gyp-input', type: 'text', placeholder: 'refresh_token', value: config.refreshToken || '' });
   const parentIdInput = createElement('input', { className: 'gyp-input', type: 'text', placeholder: 'parentId', value: config.parentId || '' });
   const pollInput = createElement('input', { className: 'gyp-input', type: 'number', min: '1000', step: '500', value: String(config.pollIntervalMs || DEFAULT_CONFIG.pollIntervalMs) });
   const maxWaitInput = createElement('input', { className: 'gyp-input', type: 'number', min: '60', step: '30', value: String(Math.round((config.maxWaitMs || DEFAULT_CONFIG.maxWaitMs) / 1000)) });
@@ -478,6 +479,7 @@ function showSettingsModal() {
       }
       const nextConfig = getConfig();
       accessTokenInput.value = nextConfig.accessToken || '';
+      refreshTokenInput.value = nextConfig.refreshToken || '';
       authStatus.textContent = buildAuthStatusText(nextConfig);
     },
   });
@@ -492,6 +494,7 @@ function showSettingsModal() {
         await ensureFreshAccessToken({ force: true });
         const nextConfig = getConfig();
         accessTokenInput.value = nextConfig.accessToken || '';
+        refreshTokenInput.value = nextConfig.refreshToken || '';
         authStatus.textContent = buildAuthStatusText(nextConfig);
         showToast('刷新成功', 'Access Token 已更新。', 'success');
       } catch (error) {
@@ -509,12 +512,13 @@ function showSettingsModal() {
     text: '保存配置',
     onclick: () => {
       const manualAuth = extractManualAuthInput(accessTokenInput.value, config);
+      const manualRefreshToken = refreshTokenInput.value.trim();
       saveConfig({
         ...config,
         clientId: manualAuth.clientId || config.clientId,
         tokenType: manualAuth.tokenType || config.tokenType,
         accessToken: manualAuth.accessToken,
-        refreshToken: manualAuth.refreshToken || '',
+        refreshToken: manualRefreshToken || manualAuth.refreshToken || '',
         expiresAt: manualAuth.expiresAt || 0,
         parentId: parentIdInput.value.trim(),
         pollIntervalMs: Math.max(1000, safeInt(pollInput.value, DEFAULT_CONFIG.pollIntervalMs)),
@@ -529,7 +533,8 @@ function showSettingsModal() {
     cardHeader('配置认证', '', clearModal),
     createElement('div', { className: 'gyp-card-body' }, [
       authStatus,
-      fieldBlock('Access Token / credentials JSON', accessTokenInput, '推荐在光鸭官网使用“同步官网认证”，会自动保存 refresh token。'),
+      fieldBlock('Access Token / credentials JSON', accessTokenInput, '推荐在光鸭官网使用"同步官网认证"，会自动保存 refresh token。'),
+      fieldBlock('Refresh Token', refreshTokenInput, '用于自动刷新 Access Token，同步认证后会自动填入。'),
       fieldBlock('parentId', parentIdInput, ''),
       createElement('div', { className: 'gyp-form-grid' }, [
         fieldBlock('轮询间隔 ms', pollInput, ''),
@@ -622,16 +627,16 @@ function copyText(text) {
 function buildFriendlyError(error) {
   if (error instanceof HttpError) {
     if (error.status === 401 || error.status === 403) {
-      return `HTTP ${error.status}，请配置 Access Token。`;
+      return `HTTP ${error.status},请配置 Access Token。`;
     }
-    return `接口 ${error.path} 请求失败：HTTP ${error.status}`;
+    return `接口 ${error.path} 请求失败:HTTP ${error.status}`;
   }
   if (error instanceof ApiError) {
     if (error.code === 101) {
       return '接口返回 code=101。';
     }
     if ([100, 102, 103, 104, 401, 403].includes(error.code)) {
-      return `认证失败：${error.message}`;
+      return `认证失败:${error.message}`;
     }
     return error.message;
   }
